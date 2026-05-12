@@ -1,12 +1,11 @@
 #import "@preview/cetz:0.5.1"
 #import "/utils/template.typ": figure-page, subtitle
-#import "/utils/constants.typ": CANVAS-LENGTH, PADDING, TRANSPARENCY
+#import "/utils/constants.typ": CANVAS-LENGTH, LIGHTEN, PADDING, TRANSPARENCY
 #import "/utils/training.typ": sample
 
 #show: figure-page
 
 #let RADIUS = 4pt
-#let LIGHTEN = 90%
 
 /// A forward-backward training arrow: an upward column with a downward
 /// return path and a triangular arrowhead at the bottom of the return.

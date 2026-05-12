@@ -6,3 +6,6 @@
 
 /// Default opacity reduction for tinted fills (60% transparent = 40% opaque).
 #let TRANSPARENCY = 60%
+
+/// Default lighten factor for tinted fills (90% lighten = 10% of original color).
+#let LIGHTEN = 90%
