@@ -1,112 +1,156 @@
 #import "@preview/cetz:0.5.1"
-#import "@preview/suiji:0.5.1": choice-f, gen-rng-f
+#import "/utils/template.typ": figure-page, subtitle
+#import "/utils/constants.typ": CANVAS-LENGTH, PADDING, TRANSPARENCY
+#import "/utils/training.typ": sample
 
-#set page(width: auto, height: auto, margin: 0pt)
+#show: figure-page
 
-#set text(font: "Helvetica", size: 12pt)
-#show math.equation: set text(font: ("Helvetica", "Libertinus Math"))
-#let subtitle = text.with(size: 16pt, weight: "bold")
-
-#let PADDING = 0.2
 #let RADIUS = 4pt
 #let LIGHTEN = 90%
-#let CANVAS-LENGTH = 28.35pt
-#let TRANSPARENTITY = 60%
 
-#let random-name(len) = {
-  let rng = gen-rng-f(len)
-  let candidates = "abcdefghijklmnopqrstuvwxyz0123456789".split("")
-  choice-f(rng, candidates, size: len).at(1).join()
-}
+/// A forward-backward training arrow: an upward column with a downward
+/// return path and a triangular arrowhead at the bottom of the return.
+/// Traced as a single closed path so there are no fill-rule artifacts;
+/// the top U-turn has rounded outer corners (radius `w`) and rounded
+/// inner cutout corners (radius `w / 2`).
+/// - x0, x1 (number): center x-coordinates of the forward/backward columns
+/// - y0, y1 (number): bottom/top y-coordinates
+/// - thickness (length): visual width of each column
+/// - accent (color): tint color
+/// - annotate (bool): whether to label the forward/backward strokes
+#let fwd-bwd(x0, x1, y0, y1, thickness, accent: none, annotate: true) = {
+  let w = thickness / CANVAS-LENGTH
+  let r-out = w
+  let r-in = w / 2
 
-#let debug(a, b) = {
-  cetz.draw.grid(
-    a,
-    b,
-    stroke: stroke(paint: gray, dash: "dashed", thickness: 0.5pt),
+  let xl = x0 - w / 2
+  let xr = x1 + w / 2
+  let xli = x0 + w / 2
+  let xri = x1 - w / 2
+  let yt = y1 - r-out
+  let yi = y1 - r-out - r-in
+
+  cetz.draw.merge-path(
+    {
+      cetz.draw.line((xl, y0), (xl, yt))
+      cetz.draw.arc(
+        (xl, yt),
+        start: 180deg,
+        stop: 90deg,
+        radius: r-out,
+        anchor: "arc-start",
+      )
+      cetz.draw.line((xli, y1), (xri, y1))
+      cetz.draw.arc(
+        (xri, y1),
+        start: 90deg,
+        stop: 0deg,
+        radius: r-out,
+        anchor: "arc-start",
+      )
+      cetz.draw.line(
+        (xr, yt),
+        (xr, y0 + w),
+        (x1 + w, y0 + w),
+        (x1, y0),
+        (x1 - w, y0 + w),
+        (xri, y0 + w),
+        (xri, yi),
+      )
+      cetz.draw.arc(
+        (xri, yi),
+        start: 0deg,
+        stop: 90deg,
+        radius: r-in,
+        anchor: "arc-start",
+      )
+      cetz.draw.line((xri - r-in, yt), (xli + r-in, yt))
+      cetz.draw.arc(
+        (xli + r-in, yt),
+        start: 90deg,
+        stop: 180deg,
+        radius: r-in,
+        anchor: "arc-start",
+      )
+      cetz.draw.line((xli, yi), (xli, y0))
+    },
+    close: true,
+    fill: accent.transparentize(TRANSPARENCY),
+    stroke: none,
   )
-  let x0 = calc.min(a.at(0), b.at(0))
-  let x1 = calc.max(a.at(0), b.at(0))
-  for x in range(x0, x1 + 1, step: 1) {
-    cetz.draw.content(
-      (x, a.at(1)),
-      anchor: "north",
-      padding: PADDING,
-      text(fill: gray, str(x)),
-    )
-  }
 
-  let y0 = calc.min(a.at(1), b.at(1))
-  let y1 = calc.max(a.at(1), b.at(1))
-  for y in range(y0, y1 + 1, step: 1) {
-    cetz.draw.content(
-      (a.at(0), y),
-      anchor: "east",
-      padding: PADDING,
-      text(fill: gray, str(y)),
-    )
+  if annotate {
+    cetz.draw.content((xl, y1), anchor: "north-east", padding: PADDING)[Forward]
+    cetz.draw.content((xr, y0), anchor: "south-west", padding: PADDING)[Backward]
   }
 }
 
-/// The size of the component would be 1x1 if no annotation is provided.
-/// The annotation would be placed below the component.
-/// - x (int): the center of the component
-/// - y (int): the center of the component
-/// - accent (str): the accent color for the component
-/// - fill (bool): whether the component should be filled
-/// - annotation (str): the annotation for the component
-#let sample(x, y, accent: black, fill: false, annotation: none) = {
-  let WIDTH = 1
-  let HEIGHT = 1
+/// A forward-only training arrow: a single upward column capped by a
+/// triangular arrowhead at the top.
+/// - x (number): center x-coordinate
+/// - y0, y1 (number): bottom/top y-coordinates
+/// - thickness (length): visual width of the column
+/// - accent (color): tint color
+/// - annotate (bool): whether to label the stroke
+#let fwd(x, y0, y1, thickness, accent: none, annotate: true) = {
+  let w = thickness / CANVAS-LENGTH
 
-  let x-start = x - WIDTH / 2
-  let y-start = y - HEIGHT / 2
-  let x-end = x-start + WIDTH
-  let y-end = y-start + HEIGHT
-
-  if fill {
-    cetz.draw.rect(
-      (x-start, y-start),
-      (x-end, y-end),
-      fill: accent.transparentize(TRANSPARENTITY),
-      stroke: none,
-    )
-  }
-
-  cetz.draw.grid(
-    (x-start, y-start),
-    (x-end, y-end),
-    stroke: accent,
-    step: .25,
+  cetz.draw.line(
+    (x - w / 2, y0),
+    (x - w / 2, y1 - w),
+    (x - w, y1 - w),
+    (x, y1),
+    (x + w, y1 - w),
+    (x + w / 2, y1 - w),
+    (x + w / 2, y0),
+    close: true,
+    fill: accent.transparentize(TRANSPARENCY),
+    stroke: none,
   )
-  if annotation != none {
-    cetz.draw.content(
-      (x, y-start),
-      anchor: "north",
-      padding: PADDING,
-      text(fill: accent, annotation),
-    )
+
+  if annotate {
+    cetz.draw.content((x + w / 2, y1), anchor: "north-west", padding: PADDING)[Forward Only]
   }
 }
 
-/// An MoE LLM model. Size of the component is .
-/// - x (int): the center of the component
-/// - y (int): the center of the component
-/// - name (str): the name of the model
-/// - annotation (content): the annotation for the model
+/// An MoE LLM model, 6 wide × 8 tall, with an embedding, three stacked
+/// decoder layers (the front-most exposes attention + MoE internals), and
+/// an LM head.
+/// - x (number): center of the component
+/// - y (number): center of the component
+/// - name (str): cetz tag prefix for child shapes; defaults to "model-<x>-<y>"
+/// - annotation (content): annotation drawn at the top-left of the model
 #let model(x, y, name: none, annotation: none) = {
   if name == none {
-    name = "model-" + random-name(5)
+    name = "model-" + str(x) + "-" + str(y)
   }
   let tag(sub) = name + "-" + sub
 
   let WIDTH = 6
   let HEIGHT = 8
   let MARGIN = 0.25
+  let BAND-HEIGHT = 0.75
+  let HEADER-INSET = 0.5
+  let LM-HEAD-INSET = 1
+  let ROUTER-HEIGHT = 1
+  let OUTER-FILL = luma(95%)
+
+  let boxed(a, b, fill, sub, label, label-anchor: "center") = {
+    cetz.draw.rect(a, b, radius: RADIUS, fill: fill, name: tag(sub))
+    if label-anchor == "center" {
+      cetz.draw.content(tag(sub), label)
+    } else {
+      cetz.draw.content(
+        tag(sub + "." + label-anchor),
+        anchor: label-anchor,
+        padding: PADDING,
+        label,
+      )
+    }
+  }
 
   let x-start = x - WIDTH / 2
   let x-end = x + WIDTH / 2
-
   let y-start = y - HEIGHT / 2
   let y-end = y + HEIGHT / 2
 
@@ -114,7 +158,7 @@
     (x-start, y-start),
     (x-end, y-end),
     radius: RADIUS,
-    fill: luma(95%),
+    fill: OUTER-FILL,
     stroke: none,
   )
   if annotation != none {
@@ -126,45 +170,34 @@
     )
   }
 
-  let x-in-start = x-start + MARGIN
-  let x-in-end = x-end - MARGIN
-  let per-layer-height = 1 - MARGIN
+  let x-inner-start = x-start + MARGIN
+  let x-inner-end = x-end - MARGIN
 
-  // embedding
-  let y-curr = y-start + MARGIN
-  cetz.draw.rect(
-    (x-in-start, y-curr),
-    (x-in-end, y-curr + per-layer-height),
-    radius: RADIUS,
-    fill: red.lighten(LIGHTEN),
-    name: tag("emb"),
+  let y-emb = y-start + MARGIN
+  boxed(
+    (x-inner-start, y-emb),
+    (x-inner-end, y-emb + BAND-HEIGHT),
+    red.lighten(LIGHTEN),
+    "emb",
+    [Embedding],
   )
-  cetz.draw.content(tag("emb"))[Embedding]
 
-  // decoder layers (stacked)
-  let y-curr = y-curr + per-layer-height + MARGIN
+  let y-layers = y-emb + BAND-HEIGHT + MARGIN
   let n-illustrate = 3
   let per-layer-offset = 0.1
   let all-offset = (n-illustrate - 1) * per-layer-offset
-  let layer-height = HEIGHT - 2 - 2 * MARGIN - all-offset
+  let layer-height = HEIGHT - 2 * BAND-HEIGHT - 4 * MARGIN - all-offset
   let layer-width = WIDTH - 2 * MARGIN - all-offset
 
-  for offset in range(0, 3) {
-    let offset = 2 - offset
-    let name = tag("layer" + str(offset))
-    let offset = offset * 0.1
-
-    let x0 = x-in-start + offset
-    let x1 = x0 + layer-width
-    let y0 = y-curr + offset
-    let y1 = y0 + layer-height
+  for layer-idx in range(n-illustrate).rev() {
+    let dx = layer-idx * per-layer-offset
 
     cetz.draw.rect(
-      (x0, y0),
-      (x1, y1),
+      (x-inner-start + dx, y-layers + dx),
+      (x-inner-start + dx + layer-width, y-layers + dx + layer-height),
       radius: RADIUS,
       fill: white,
-      name: name,
+      name: if layer-idx == 0 { tag("layer0") } else { none },
     )
   }
   cetz.draw.content(
@@ -173,142 +206,63 @@
     padding: PADDING,
   )[Decoder Layers]
 
-  // attention inside layer 0
-  let attn-x-start = x-in-start + MARGIN
-  let attn-x-end = attn-x-start + layer-width - all-offset - MARGIN
-  let attn-y-start = y-curr + MARGIN
-  let attn-y-end = attn-y-start + per-layer-height
-  cetz.draw.rect(
+  let attn-x-start = x-inner-start + MARGIN
+  let attn-x-end = x-inner-end - MARGIN - all-offset
+  let attn-y-start = y-layers + MARGIN
+  boxed(
     (attn-x-start, attn-y-start),
-    (attn-x-end, attn-y-end),
-    radius: RADIUS * LIGHTEN,
-    fill: orange.lighten(LIGHTEN),
-    name: tag("attn"),
+    (attn-x-end, attn-y-start + BAND-HEIGHT),
+    orange.lighten(LIGHTEN),
+    "attn",
+    [Attention],
   )
-  cetz.draw.content(tag("attn"))[Attention]
 
-  // MoE inside layer 0
-  let moe-y-start = attn-y-end + MARGIN
-  let moe-y-end = y-curr + layer-height - MARGIN - 0.5
-  cetz.draw.rect(
+  let moe-y-start = attn-y-start + BAND-HEIGHT + MARGIN
+  let moe-y-end = y-layers + layer-height - MARGIN - HEADER-INSET
+  boxed(
     (attn-x-start, moe-y-start),
     (attn-x-end, moe-y-end),
-    radius: RADIUS * LIGHTEN,
-    fill: purple.lighten(LIGHTEN),
-    name: tag("moe"),
+    purple.lighten(LIGHTEN),
+    "moe",
+    [MoE],
+    label-anchor: "north",
   )
-  cetz.draw.content(tag("moe.north"), anchor: "north", padding: PADDING)[MoE]
+
   let router-x-start = attn-x-start + MARGIN
   let router-x-end = attn-x-end - MARGIN
   let router-y-start = moe-y-start + MARGIN
-  let router-y-end = moe-y-start + 1
-  cetz.draw.rect(
+  boxed(
     (router-x-start, router-y-start),
-    (router-x-end, router-y-end),
-    radius: RADIUS * LIGHTEN,
-    fill: white,
-    name: tag("router"),
+    (router-x-end, router-y-start + ROUTER-HEIGHT),
+    white,
+    "router",
+    [Router],
   )
-  cetz.draw.content(tag("router"), anchor: "center")[Router]
-  let experts-y-start = router-y-end + MARGIN
-  let experts-y-end = moe-y-end - MARGIN - 0.5
-  cetz.draw.rect(
-    (router-x-start, experts-y-start),
-    (router-x-end, experts-y-end),
-    radius: RADIUS * LIGHTEN,
-    fill: white,
-    name: tag("experts"),
-  )
-  cetz.draw.content(tag("experts"), anchor: "center")[Experts]
 
-  // LM Head
-  let y-curr = y-curr + layer-height + MARGIN + all-offset
-  let x-offset = 1
-  cetz.draw.rect(
-    (x-in-start + x-offset, y-curr),
-    (x-in-end - x-offset, y-curr + per-layer-height),
-    radius: RADIUS * LIGHTEN,
-    fill: green.lighten(LIGHTEN),
-    name: tag("lmhead"),
+  boxed(
+    (router-x-start, router-y-start + ROUTER-HEIGHT + MARGIN),
+    (router-x-end, moe-y-end - MARGIN - HEADER-INSET),
+    white,
+    "experts",
+    [Experts],
   )
-  cetz.draw.content(tag("lmhead"))[LM Head]
+
+  let y-lmhead = y-layers + layer-height + MARGIN + all-offset
+  boxed(
+    (x-inner-start + LM-HEAD-INSET, y-lmhead),
+    (x-inner-end - LM-HEAD-INSET, y-lmhead + BAND-HEIGHT),
+    green.lighten(LIGHTEN),
+    "lmhead",
+    [LM Head],
+  )
 }
-
-#let fwd-bwd(x0, x1, y0, y1, thickness, accent: none, annotate: true) = {
-  let width-ratio = thickness / CANVAS-LENGTH
-
-  let stroke-style = stroke(paint: accent.transparentize(TRANSPARENTITY), thickness: thickness)
-  // cetz.draw.line((x0, y0), (x0, y1), (x1, y1), (x1, y0), stroke: stroke-style)
-  cetz.draw.compound-path(
-    {
-      cetz.draw.rect(
-        (x0 - width-ratio / 2, y0),
-        (x1 + width-ratio / 2, y1),
-        radius: (north: width-ratio),
-      )
-      cetz.draw.rect(
-        (x0 + width-ratio / 2, y0),
-        (x1 - width-ratio / 2, y1 - width-ratio),
-        radius: (north: width-ratio / 2),
-      )
-      cetz.draw.rect(
-        (x1 - width-ratio / 2, y0),
-        (x1 + width-ratio / 2, y0 + width-ratio),
-      )
-      cetz.draw.line(
-        (x1 - width-ratio, y0 + width-ratio),
-        (x1 + width-ratio, y0 + width-ratio),
-        (x1, y0),
-        close: true,
-      )
-    },
-    stroke: none,
-    fill: accent.transparentize(TRANSPARENTITY),
-    fill-rule: "even-odd",
-  )
-
-  if annotate {
-    cetz.draw.content((x0 - width-ratio / 2, y1), anchor: "north-east", padding: PADDING)[Forward]
-    cetz.draw.content((x1 + width-ratio / 2, y0), anchor: "south-west", padding: PADDING)[Backward]
-  }
-}
-
-#let fwd(x, y0, y1, thickness, accent: none, annotate: true) = {
-  let width-ratio = thickness / CANVAS-LENGTH
-
-  cetz.draw.compound-path(
-    {
-      cetz.draw.rect(
-        (x - width-ratio / 2, y0),
-        (x + width-ratio / 2, y1 - width-ratio),
-      )
-      cetz.draw.line(
-        (x - width-ratio, y1 - width-ratio),
-        (x + width-ratio, y1 - width-ratio),
-        (x, y1),
-        close: true,
-      )
-    },
-    stroke: none,
-    fill: accent.transparentize(TRANSPARENTITY),
-    fill-rule: "even-odd",
-  )
-
-  if annotate {
-    cetz.draw.content((x + width-ratio / 2, y1), anchor: "north-west", padding: PADDING)[Forward Only]
-  }
-}
-
 
 #cetz.canvas(length: CANVAS-LENGTH, padding: PADDING, {
   import cetz.draw: *
 
-  // debug((-5, -2), (21, 14))
-
   let DATA1_COLOR = blue
   let DATA2_COLOR = fuchsia
 
-  // Without Anticipatory Routing
   content((0, 0), subtitle[Without Anticipatory Routing])
   model(0, 7, annotation: $bold(theta_t)$)
   sample(-0.5, 1.5, accent: DATA1_COLOR, fill: true, annotation: $"Data"_t$)
@@ -322,10 +276,8 @@
   )
   content((0, 12.5), text(size: 14pt)[Step $t$])
 
-  // Divider
   line((5, -1), (5, 13), stroke: (thickness: 2pt, dash: "loosely-dashed"))
 
-  // With Anticipatory Routing
   content((13, 0), subtitle[With Anticipatory Routing])
   model(9, 7, annotation: $bold(theta_(t - Delta t))$)
   sample(8, 1.5, accent: DATA1_COLOR, fill: true, annotation: $"Data"_(t - Delta t)$)
@@ -360,13 +312,16 @@
   )
   content((17, 12.5), text(size: 14pt)[Step $t$])
 
-  // Routing Replay
-  compound-path(
-    {
-      rect((10.25, 6.5), (16, 6.75))
-      line((16, 6.25), (16, 7), (16.25, 6.625), close: true)
-    },
-    fill: DATA2_COLOR.transparentize(TRANSPARENTITY),
+  line(
+    (10.25, 6.75),
+    (16, 6.75),
+    (16, 6.5),
+    (16.25, 6.875),
+    (16, 7.25),
+    (16, 7),
+    (10.25, 7),
+    close: true,
+    fill: DATA2_COLOR.transparentize(TRANSPARENCY),
     stroke: none,
   )
   content((13, 7), anchor: "south", align(center)[Replay \ Routing \ Decision])
