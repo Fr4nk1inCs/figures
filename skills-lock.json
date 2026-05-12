@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "typst": {
+      "source": "lucifer1004/claude-skill-typst",
+      "sourceType": "github",
+      "skillPath": "skills/typst/SKILL.md",
+      "computedHash": "c9d21d84ac9c8c5bbc8665c044643019a374dad19e9af958835f983e2665e4a6"
+    }
+  }
+}
